@@ -1,7 +1,6 @@
 package org.example.Assignment;
 
 import org.junit.jupiter.api.Test;
-import org.mockito.Mockito;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -65,7 +64,7 @@ public class FilterInvoiceTest {
     // verifies SAP.send is called exactly only once for every invoice
     // Makes sure the correct invoices are sent to SAP
     @Test
-    void testWhenLowInvoicesSent() {
+    void testWhenLowInvoicesSent() throws FailToSendSAPInvoiceException {
         // Set up mocks
         FilterInvoice mockFilter = mock(FilterInvoice.class);
         SAP mockSap = mock(SAP.class);
@@ -96,7 +95,7 @@ public class FilterInvoiceTest {
     // verifies SAP.send is not called
     // Makes sure system handles empty case with no error
     @Test
-    void testWhenNoInvoices() {
+    void testWhenNoInvoices() throws FailToSendSAPInvoiceException {
         // Set up mocks
         FilterInvoice mockFilter = mock(FilterInvoice.class);
         SAP mockSap = mock(SAP.class);
@@ -113,4 +112,39 @@ public class FilterInvoiceTest {
         // Verify SAP will not be called
         verify(mockSap, never()).send(any(Invoice.class));
     }
+
+
+      // Tests error handling when sending invoice to SAP fails
+      // Sets up mock depens
+      // changes SAP mock to throw exception for certain invoice
+      // Verifies failed invoice is stored and returned
+      // makes sure system continues processing other invoices
+    @Test
+    void testThrowExceptionWhenBadInvoice() throws FailToSendSAPInvoiceException {
+        // Set up mocks
+        FilterInvoice mockFilter = mock(FilterInvoice.class);
+        SAP mockSap = mock(SAP.class);
+
+        // Create test invoice that will fail
+        Invoice badInvoice = new Invoice("customer1", 50);
+        List<Invoice> invoices = Arrays.asList(badInvoice);
+
+        // Stub filter to return test invoice
+        when(mockFilter.lowValueInvoices()).thenReturn(invoices);
+
+        // Configure SAP to throw exception for specific invoice
+        doThrow(new FailToSendSAPInvoiceException())
+                .when(mockSap).send(badInvoice);
+
+        // Create sender with mocked dependencies
+        SAP_BasedInvoiceSender sapSender = new SAP_BasedInvoiceSender(mockFilter, mockSap);
+
+        // Execute and get failed invoices
+        List<Invoice> failedInvoices = sapSender.sendLowValuedInvoices();
+
+        // Verify the invoice failed and was stored
+        assertEquals(1, failedInvoices.size());
+        assertTrue(failedInvoices.contains(badInvoice));
+    }
+
 }
